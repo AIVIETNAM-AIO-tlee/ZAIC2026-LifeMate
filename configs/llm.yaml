@@ -1,0 +1,10 @@
+llm:
+  provider: "gemini"                # "gemini" | "openai" | "mock"
+  model: "gemini-2.5-flash"
+  temperature: 0.1
+  max_output_tokens: 1024
+  timeout_seconds: 30
+  max_retries: 3
+  api_key_env: "GEMINI_API_KEY"
+  base_url: null                    # Used if provider is "openai" or custom proxy
+
