@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifemate"
+version = "0.1.0"
+description = "LifeMate Agent & Speech Pipeline for Zalo AI Challenge 2026"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0.1",
+    "pydantic>=2.7.0",
+    "tqdm>=4.66.0",
+    "requests>=2.31.0",
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+

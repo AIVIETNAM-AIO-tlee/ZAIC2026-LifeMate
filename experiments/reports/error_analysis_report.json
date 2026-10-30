@@ -1,0 +1,154 @@
+{
+  "total_evaluated": 50,
+  "total_successful": 7,
+  "total_failed": 43,
+  "error_distribution": {
+    "EXTRA_CALL": 2,
+    "STATE_HASH_MISMATCH": 39,
+    "OUT_OF_SCOPE_FAIL": 38,
+    "MISSING_CALL": 39,
+    "WRONG_ARGUMENTS": 2,
+    "MISSING_INFO_FAIL": 4,
+    "WRONG_TOOL_NAME": 2
+  },
+  "top_failed_examples": [
+    {
+      "sample_id": "train_0002",
+      "errors": [
+        "EXTRA_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [
+        "weather.get_forecast",
+        "calendar.list_events",
+        "calendar.update_event"
+      ],
+      "gold_calls": [
+        "weather.get_forecast"
+      ]
+    },
+    {
+      "sample_id": "train_0003",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "bill_payment.list_bills",
+        "contacts.search",
+        "ewallet.topup_mobile",
+        "contacts.search",
+        "ewallet.transfer"
+      ]
+    },
+    {
+      "sample_id": "train_0004",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "smart_home.get_status",
+        "smart_home.light_set"
+      ]
+    },
+    {
+      "sample_id": "train_0005",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "calendar.list_events",
+        "ride_hailing.book"
+      ]
+    },
+    {
+      "sample_id": "train_0006",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "gold_price.get_price"
+      ]
+    },
+    {
+      "sample_id": "train_0007",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "alarm.create"
+      ]
+    },
+    {
+      "sample_id": "train_0008",
+      "errors": [
+        "EXTRA_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [
+        "weather.get_forecast",
+        "calendar.list_events",
+        "calendar.update_event"
+      ],
+      "gold_calls": [
+        "weather.get_forecast"
+      ]
+    },
+    {
+      "sample_id": "train_0009",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "ewallet.topup_mobile"
+      ]
+    },
+    {
+      "sample_id": "train_0011",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "bill_payment.list_bills",
+        "ewallet.get_balance",
+        "bill_payment.pay",
+        "reminders.create"
+      ]
+    },
+    {
+      "sample_id": "train_0012",
+      "errors": [
+        "OUT_OF_SCOPE_FAIL",
+        "MISSING_CALL",
+        "STATE_HASH_MISMATCH"
+      ],
+      "pred_calls": [],
+      "gold_calls": [
+        "banking.get_balance",
+        "banking.list_beneficiaries",
+        "banking.transfer",
+        "contacts.search",
+        "ewallet.topup_mobile"
+      ]
+    }
+  ]
+}

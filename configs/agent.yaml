@@ -1,0 +1,8 @@
+agent:
+  max_steps: 8
+  strict_validation: true
+  max_schema_retries: 2
+  auto_repair_args: true
+  grounding_enabled: true
+  stop_on_rejected: true
+

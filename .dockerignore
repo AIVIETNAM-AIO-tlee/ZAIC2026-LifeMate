@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+experiments/reports/
+data/
+result/
+models/
+docs/
+tests/
+

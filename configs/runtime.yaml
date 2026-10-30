@@ -1,0 +1,8 @@
+runtime:
+  device: "cpu"
+  num_workers: 2
+  max_timeout_per_sample_seconds: 10.0
+  batch_size: 1
+  log_level: "INFO"
+  output_dir: "result"
+
