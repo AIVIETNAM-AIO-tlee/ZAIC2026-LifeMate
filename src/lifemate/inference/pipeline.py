@@ -14,7 +14,6 @@ import logging
 from pathlib import Path
 from typing import Any, Protocol
 
-from lifemate.agent.planner import AgentPlanner as ConcreteAgentPlanner
 from lifemate.inference.submission import SubmissionRecord, SubmissionWriter
 from lifemate.speech.pipeline import SpeechPipeline
 from lifemate.tools.catalog import ToolCatalog
@@ -69,7 +68,12 @@ class InferencePipeline:
                 self.catalog = speech_or_catalog
 
         if self.catalog is not None and self.planner is not None:
-            self.executor = InteractiveExecutor(planner=self.planner, catalog=self.catalog, max_steps=self.max_steps)
+            self.executor = InteractiveExecutor(
+                planner=self.planner,
+                catalog=self.catalog,
+                max_steps=self.max_steps,
+                speech=self.speech,
+            )
         else:
             self.executor = None
 
@@ -179,10 +183,12 @@ class InferencePipeline:
 
                         sample = json.loads(line)
                         sample_id = sample.get("id", f"sample_{line_idx}")
+                        env = None
 
                         try:
                             if self.executor is not None:
-                                res = self.executor.execute_sample(sample, split=split, root=root)
+                                env = get_tool_env(split, sample_id, root=root)
+                                res = self.executor.execute_sample(sample, split=split, root=root, env_instance=env)
                                 record = SubmissionRecord(
                                     id=sample_id,
                                     tool_calls=res.get("tool_calls", []),
@@ -205,13 +211,16 @@ class InferencePipeline:
                                     state_hash=res.get("state_hash", ""),
                                 )
                         except Exception as e:
-                            self.logger.error(f"Error on sample {sample_id}: {e}. Falling back to empty calls.")
-                            try:
-                                fallback_env = get_tool_env(split, sample_id, root=root)
-                                fallback_hash = fallback_env.get_state_hash()
-                            except Exception:
-                                fallback_hash = "0" * 64
-                            record = SubmissionRecord(id=sample_id, tool_calls=[], state_hash=fallback_hash)
+                            self.logger.error(f"Error on sample {sample_id}: {e}")
+                            calls = []
+                            state_hash = ""
+                            if env is not None:
+                                try:
+                                    calls = env.get_tool_calls()
+                                    state_hash = env.get_state_hash()
+                                except Exception:
+                                    pass
+                            record = SubmissionRecord(id=sample_id, tool_calls=calls, state_hash=state_hash)
 
                         writer.write_record(record)
 

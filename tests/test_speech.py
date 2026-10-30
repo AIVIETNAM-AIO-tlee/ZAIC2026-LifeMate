@@ -46,14 +46,14 @@ class SpeechTests(unittest.TestCase):
     def test_normalizes_dates_times_and_currency(self):
         self.assertEqual(
             normalize_text("Ngày 5 tháng 3 năm 2026, 7 giờ 30 sáng; 50 nghìn đồng!"),
-            "05/03/2026, 07:30; 50000 đồng!",
+            "2026-03-05, 07:30; 50000 đồng!",
         )
 
     def test_preserves_address_device_names_and_code_switching(self):
         transcript = "  Địa chỉ 88 Nguyễn Văn Linh, đèn phòng ngủ nhỏ bật Spotify nhé. "
         self.assertEqual(
             normalize_text(transcript),
-            "địa chỉ 88 nguyễn văn linh, đèn phòng ngủ nhỏ bật spotify nhé.",
+            "Địa chỉ 88 Nguyễn Văn Linh, đèn phòng ngủ nhỏ bật Spotify nhé.",
         )
 
     def test_pipeline_forwards_user_profile_as_hotwords_and_normalizes_output(self):
@@ -63,7 +63,7 @@ class SpeechTests(unittest.TestCase):
             "audio.wav",
             context={"user_profile": {"name": "Em Linh", "city": "Đà Nẵng"}},
         )
-        self.assertEqual(result, "05/03/2026, 07:30!")
+        self.assertEqual(result, "2026-03-05, 07:30!")
         self.assertEqual(model.context["hotwords"], ["Em Linh", "Đà Nẵng"])
 
     def test_transcribe_with_optional_intent_slot_extractor(self):
@@ -74,7 +74,7 @@ class SpeechTests(unittest.TestCase):
             slot_extractor=lambda text, context: {"intent": "smart_home.light_set", "device": "phòng khách"},
         )
         self.assertEqual(result["intent_slots"]["intent"], "smart_home.light_set")
-        self.assertEqual(result["transcript"], "bật đèn phòng khách")
+        self.assertEqual(result["transcript"], "Bật đèn phòng khách")
 
 
 if __name__ == "__main__":

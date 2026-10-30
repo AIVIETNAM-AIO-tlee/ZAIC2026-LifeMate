@@ -12,7 +12,7 @@ import re
 import urllib.request
 import urllib.error
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 from lifemate.agent.argument_builder import ArgumentBuilder
 from lifemate.agent.context import AgentContext
@@ -21,6 +21,7 @@ from lifemate.agent.prompts import FEW_SHOT_EXAMPLES, SYSTEM_PROMPT, build_user_
 from lifemate.agent.tool_selector import ToolSelector
 from lifemate.tools.catalog import ToolCatalog
 from lifemate.tools.validator import ToolValidator
+from lifemate.utils.config import get_agent_config, get_llm_config
 
 
 @dataclass
@@ -48,21 +49,22 @@ class GeminiRESTClient(BaseLLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        model: str = "gemini-2.5-flash",
-        temperature: float = 0.1,
-        timeout: int = 30,
+        model: str | None = None,
+        temperature: float | None = None,
+        timeout: int | None = None,
     ):
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
-        self.model = model
-        self.temperature = temperature
-        self.timeout = timeout
+        cfg = get_llm_config()
+        self.api_key = api_key or os.environ.get(cfg.get("api_key_env", "GEMINI_API_KEY"), "") or os.environ.get("GEMINI_API_KEY", "")
+        self.model = model or cfg.get("model", "gemini-2.5-flash")
+        self.temperature = temperature if temperature is not None else cfg.get("temperature", 0.1)
+        self.timeout = timeout if timeout is not None else cfg.get("timeout_seconds", 30)
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         if not self.api_key:
             return json.dumps({"action": "finish", "thought": "GEMINI_API_KEY is not set."})
 
-        # Use query parameter or Authorization header
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        # Use header authentication instead of URL query string
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = {
             "contents": [
                 {
@@ -80,7 +82,10 @@ class GeminiRESTClient(BaseLLMClient):
         req = urllib.request.Request(
             url,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": self.api_key,
+            },
             method="POST",
         )
 
@@ -103,16 +108,18 @@ class OpenAIRESTClient(BaseLLMClient):
     def __init__(
         self,
         api_key: str | None = None,
-        base_url: str = "https://api.openai.com/v1",
-        model: str = "gpt-4o-mini",
-        temperature: float = 0.1,
-        timeout: int = 30,
+        base_url: str | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        timeout: int | None = None,
     ):
+        cfg = get_llm_config()
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "")
-        self.base_url = base_url.rstrip("/")
-        self.model = model
-        self.temperature = temperature
-        self.timeout = timeout
+        raw_base = base_url or cfg.get("base_url") or "https://api.openai.com/v1"
+        self.base_url = raw_base.rstrip("/")
+        self.model = model or cfg.get("model", "gpt-4o-mini")
+        self.temperature = temperature if temperature is not None else cfg.get("temperature", 0.1)
+        self.timeout = timeout if timeout is not None else cfg.get("timeout_seconds", 30)
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         url = f"{self.base_url}/chat/completions"
@@ -141,7 +148,6 @@ class OpenAIRESTClient(BaseLLMClient):
                 return '{"action": "finish"}'
         except Exception as e:
             return json.dumps({"action": "finish", "thought": f"OpenAI API error: {e}"})
-
 
 
 class MockLLMClient(BaseLLMClient):
@@ -201,19 +207,20 @@ class AgentPlanner:
         self,
         catalog: ToolCatalog,
         llm_client: BaseLLMClient,
-        strict_validation: bool = True,
-        grounding_enabled: bool = True,
-        auto_repair: bool = True,
+        strict_validation: bool | None = None,
+        grounding_enabled: bool | None = None,
+        auto_repair: bool | None = None,
     ):
+        cfg = get_agent_config()
         self.catalog = catalog
         self.llm = llm_client
         self.selector = ToolSelector(catalog)
         self.policy = AgentPolicy(catalog)
         self.arg_builder = ArgumentBuilder(catalog)
         self.validator = ToolValidator(catalog)
-        self.strict_validation = strict_validation
-        self.grounding_enabled = grounding_enabled
-        self.auto_repair = auto_repair
+        self.strict_validation = strict_validation if strict_validation is not None else cfg.get("strict_validation", True)
+        self.grounding_enabled = grounding_enabled if grounding_enabled is not None else cfg.get("grounding_enabled", True)
+        self.auto_repair = auto_repair if auto_repair is not None else cfg.get("auto_repair_args", True)
 
     def plan_next_step(
         self,
@@ -281,6 +288,61 @@ class AgentPlanner:
             thought=thought,
             raw_response=raw_output,
         )
+
+    def plan(
+        self,
+        transcript: str | Mapping[str, Any] = "",
+        context: Mapping[str, Any] | None = None,
+        history: Any = None,
+        tool_results: Any = None,
+        sample: Mapping[str, Any] | None = None,
+        feedback_error: str | None = None,
+    ) -> dict[str, Any]:
+        """Unified plan method adhering to the InferencePipeline Protocol."""
+        if isinstance(transcript, Mapping):
+            sample = transcript
+            user_request = sample.get("audio_text") or sample.get("text") or ""
+            ctx_data = sample.get("context", {})
+            hist_data = sample.get("history", [])
+        else:
+            user_request = str(transcript or "")
+            ctx_data = context or {}
+            hist_data = history or []
+
+        sample_id = str((sample or {}).get("id", ""))
+        agent_context = AgentContext(
+            sample_id=sample_id,
+            current_time=str(ctx_data.get("current_time", "")),
+            timezone=str(ctx_data.get("timezone", "Asia/Ho_Chi_Minh")),
+            location=ctx_data.get("location"),
+            user_profile=ctx_data.get("user_profile"),
+            installed_apps=ctx_data.get("installed_apps"),
+            history=list(hist_data),
+        )
+
+        if tool_results:
+            for tr in tool_results:
+                agent_context.record_call_result(
+                    tr.get("name", ""),
+                    tr.get("arguments") or {},
+                    tr.get("result") or {},
+                )
+
+        decision = self.plan_next_step(
+            user_request=user_request,
+            context=agent_context,
+            feedback_error=feedback_error,
+        )
+
+        if decision.action == "call":
+            return {
+                "tool_calls": [{"name": decision.tool_name, "arguments": decision.arguments}],
+                "thought": decision.thought,
+            }
+        return {
+            "tool_calls": [],
+            "final_response": decision.thought or "Finish",
+        }
 
 
 class HeuristicPlanner(AgentPlanner):
@@ -412,4 +474,3 @@ class HeuristicPlanner(AgentPlanner):
 
         # Default: Finish
         return AgentDecision(action="finish", thought="Không có hành động phù hợp tiếp theo")
-

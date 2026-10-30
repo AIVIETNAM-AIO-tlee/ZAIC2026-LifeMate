@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch transformers scipy --index-url https://download.pytorch.org/whl/cpu
 
 COPY src/ ./src/
 COPY configs/ ./configs/
@@ -20,4 +21,3 @@ COPY scripts/ ./scripts/
 
 # Default entrypoint for private test evaluation
 ENTRYPOINT ["python", "scripts/run_inference.py"]
-

@@ -107,7 +107,19 @@ class TemporalReasoner:
         if m:
             return m.group(0)
 
-        # DD/MM or DD-MM
+        # Explicit DD/MM/YYYY or DD-MM-YYYY
+        m_full = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{4})\b", text)
+        if m_full:
+            day = int(m_full.group(1))
+            month = int(m_full.group(2))
+            year = int(m_full.group(3))
+            try:
+                dt = datetime(year, month, day, tzinfo=self.tz)
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+
+        # DD/MM or DD-MM (defaults to current year)
         m2 = re.search(r"\b(\d{1,2})[/-](\d{1,2})\b", text)
         if m2:
             day = int(m2.group(1))

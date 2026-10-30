@@ -20,13 +20,14 @@ _SRC_DIR = ROOT / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-from lifemate.agent.planner import AgentPlanner, GeminiRESTClient, HeuristicPlanner, MockLLMClient
+from lifemate.agent.planner import AgentPlanner, GeminiRESTClient, HeuristicPlanner, MockLLMClient, OpenAIRESTClient
 from lifemate.inference.pipeline import InferencePipeline
 from lifemate.inference.submission import SubmissionRecord, SubmissionWriter
 from lifemate.speech.asr import ASRModel, load_asr_config, load_runtime_config
 from lifemate.speech.pipeline import SpeechPipeline
 from lifemate.tools.catalog import ToolCatalog
 from lifemate.tools.executor import get_tool_env
+from lifemate.utils.config import get_llm_config, get_runtime_config
 
 
 def _load_factory(specification: str) -> Any:
@@ -47,14 +48,17 @@ def _read_rows(path: Path):
 
 
 def parse_args() -> argparse.Namespace:
+    rt_cfg = get_runtime_config()
+    llm_cfg = get_llm_config()
+
     parser = argparse.ArgumentParser(description="Run inference and generate submission.jsonl.")
     parser.add_argument("--split", type=str, default="public_test", help="Split name (public_test/train/private_test)")
     parser.add_argument("--data-root", type=Path, default=ROOT / "data", help="Root data directory")
     parser.add_argument("--data-path", type=str, default=None, help="Direct path to .jsonl (overrides data-root/split)")
     parser.add_argument("--catalog-path", type=str, default=None, help="Path to tool catalog json")
-    parser.add_argument("--output", type=str, default="result/submission.jsonl", help="Output submission path")
-    parser.add_argument("--provider", type=str, default="heuristic", choices=["heuristic", "gemini", "mock"])
-    parser.add_argument("--model", type=str, default="gemini-2.5-flash")
+    parser.add_argument("--output", type=str, default=f"{rt_cfg.get('output_dir', 'result')}/submission.jsonl", help="Output submission path")
+    parser.add_argument("--provider", type=str, default=llm_cfg.get("provider", "heuristic"), choices=["heuristic", "gemini", "openai", "mock"])
+    parser.add_argument("--model", type=str, default=llm_cfg.get("model", "gemini-2.5-flash"))
     parser.add_argument("--agent", type=str, default=None, help="Agent factory formatted as python.module:factory")
     parser.add_argument("--config", type=Path, default=ROOT / "configs" / "asr.yaml", help="ASR config path")
     parser.add_argument("--runtime-config", type=Path, default=ROOT / "configs" / "runtime.yaml", help="Runtime config path")
@@ -129,11 +133,27 @@ def main() -> None:
         elif args.provider == "gemini":
             llm = GeminiRESTClient(model=args.model)
             planner = AgentPlanner(catalog=catalog, llm_client=llm)
+        elif args.provider == "openai":
+            llm = OpenAIRESTClient(model=args.model)
+            planner = AgentPlanner(catalog=catalog, llm_client=llm)
         else:
             llm = MockLLMClient()
             planner = AgentPlanner(catalog=catalog, llm_client=llm)
 
-        pipeline = InferencePipeline(catalog=catalog, planner=planner)
+        # Build optional speech pipeline for transcription when audio_text is missing
+        speech = None
+        try:
+            if args.config.exists():
+                cfg = load_asr_config(args.config)
+                if args.runtime_config and args.runtime_config.exists():
+                    cfg["runtime"] = {**cfg.get("runtime", {}), **load_runtime_config(args.runtime_config)}
+                model = ASRModel(cfg)
+                speech = SpeechPipeline(model, int(cfg.get("preprocessing", {}).get("sample_rate", 16_000)))
+        except Exception:
+            # If torch/ASR is not available, proceed without ASR
+            speech = None
+
+        pipeline = InferencePipeline(catalog=catalog, planner=planner, speech=speech)
         written_count = pipeline.run(
             data_path=data_path,
             output_path=output_path,
@@ -148,12 +168,13 @@ def main() -> None:
     if args.validate and written_count > 0:
         print("[INFO]: Running automated validation via zaic_tools...")
         val_cmd = f'python -m zaic_tools --split {args.split} --root "{data_root}" --validate "{output_path}"'
-        os.environ["PYTHONPATH"] = f"data/{args.split};src"
+        os.environ["PYTHONPATH"] = os.pathsep.join([f"data/{args.split}", "src"])
         exit_code = os.system(val_cmd)
         if exit_code == 0:
             print("[SUCCESS]: Submission file is 100% valid with 0 schema errors!")
         else:
-            print(f"[WARNING]: Validation returned exit code {exit_code}.")
+            print(f"[ERROR]: Validation returned exit code {exit_code}.")
+            sys.exit(exit_code)
 
 
 if __name__ == "__main__":

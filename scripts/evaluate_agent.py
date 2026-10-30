@@ -18,7 +18,7 @@ _SRC_DIR = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-from lifemate.agent.planner import AgentPlanner, GeminiRESTClient, HeuristicPlanner, MockLLMClient
+from lifemate.agent.planner import AgentPlanner, GeminiRESTClient, HeuristicPlanner, MockLLMClient, OpenAIRESTClient
 from lifemate.evaluation.agent_metrics import (
     SampleEvaluationResult,
     aggregate_dataset_metrics,
@@ -28,18 +28,23 @@ from lifemate.evaluation.agent_metrics import (
 from lifemate.evaluation.error_analysis import ErrorAnalyzer
 from lifemate.tools.catalog import ToolCatalog
 from lifemate.tools.executor import InteractiveExecutor, get_tool_env
+from lifemate.utils.config import get_llm_config, get_runtime_config
 from lifemate.utils.logging import StructuredTracer
 
 
 def parse_args() -> argparse.Namespace:
+    llm_cfg = get_llm_config()
+    rt_cfg = get_runtime_config()
+
     parser = argparse.ArgumentParser(description="Evaluate agent baseline.")
     parser.add_argument("--split", type=str, default="train", help="Dataset split (train/public_test)")
+    parser.add_argument("--data-root", type=str, default="data", help="Root data directory")
     parser.add_argument("--data-path", type=str, default="data/train/train.jsonl")
     parser.add_argument("--catalog-path", type=str, default="data/train/train_tools_catalog.json")
     parser.add_argument("--limit", type=int, default=20, help="Number of samples to evaluate (0 for all)")
-    parser.add_argument("--provider", type=str, default="heuristic", choices=["gemini", "mock", "heuristic"])
-    parser.add_argument("--model", type=str, default="gemini-2.5-flash")
-    parser.add_argument("--output-submission", type=str, default="result/submission.jsonl")
+    parser.add_argument("--provider", type=str, default=llm_cfg.get("provider", "heuristic"), choices=["gemini", "openai", "mock", "heuristic"])
+    parser.add_argument("--model", type=str, default=llm_cfg.get("model", "gemini-2.5-flash"))
+    parser.add_argument("--output-submission", type=str, default=f"{rt_cfg.get('output_dir', 'result')}/submission.jsonl")
     parser.add_argument("--error-report", action="store_true", help="Generate detailed error analysis report")
     parser.add_argument("--trace-file", type=str, default=None, help="Path to write structured JSONL trace")
     return parser.parse_args()
@@ -55,6 +60,9 @@ def main() -> None:
         planner = HeuristicPlanner(catalog=catalog)
     elif args.provider == "gemini":
         llm_client = GeminiRESTClient(model=args.model)
+        planner = AgentPlanner(catalog=catalog, llm_client=llm_client)
+    elif args.provider == "openai":
+        llm_client = OpenAIRESTClient(model=args.model)
         planner = AgentPlanner(catalog=catalog, llm_client=llm_client)
     else:
         llm_client = MockLLMClient()
@@ -79,17 +87,18 @@ def main() -> None:
             sample_id = sample.get("id", f"sample_{total_processed}")
 
             # Run agent session
-            result = executor.execute_sample(sample, split=args.split, root="data")
+            result = executor.execute_sample(sample, split=args.split, root=args.data_root)
             fout.write(json.dumps(result, ensure_ascii=False) + "\n")
 
             pred_calls = result.get("tool_calls", [])
             pred_hash = result.get("state_hash", "")
+            rejected_calls = result.get("rejected_calls_count", 0)
 
             gold_label = sample.get("label", {})
             gold_calls = gold_label.get("tool_calls", [])
 
             # Compute gold state hash by replaying gold calls
-            gold_env = get_tool_env(args.split, sample_id, root="data")
+            gold_env = get_tool_env(args.split, sample_id, root=args.data_root)
             for gc in gold_calls:
                 gold_env.call(gc.get("name", ""), gc.get("arguments") or {})
             gold_hash = gold_env.get_state_hash()
@@ -108,7 +117,7 @@ def main() -> None:
                 sequence_exact_match=exact_match,
                 state_hash_match=hash_match,
                 task_success=task_success,
-                rejected_calls_count=0,
+                rejected_calls_count=rejected_calls,
                 pred_calls=pred_calls,
                 gold_calls=gold_calls,
                 pred_hash=pred_hash,
@@ -142,11 +151,12 @@ def main() -> None:
     print(f"Task Success Rate:        {summary.task_success_rate * 100:.2f}%")
     print(f"Schema Rejection Rate:    {summary.schema_rejection_rate * 100:.2f}%")
     print(f"Results written to:       {out_path}")
-    print("====================================================\n")
+    print("====================================================")
 
     if args.error_report:
         err_summary = ErrorAnalyzer.generate_error_report(sample_results, report_dir="experiments/reports")
-        print(f"Error report generated at experiments/reports/error_analysis_report.md")
+        print("\n[INFO]: Error analysis report generated in experiments/reports/")
+        print(f"Failed samples: {err_summary['total_failed']}/{err_summary['total_evaluated']}")
 
 
 if __name__ == "__main__":

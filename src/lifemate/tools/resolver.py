@@ -1,7 +1,7 @@
 """Entity & Reference Resolver for ZAC 2026 LifeMate.
 
-Resolves entity IDs (contact_id, event_id, device_id, etc.) from tool read results
-and handles fuzzy string matching for Vietnamese names and aliases.
+Resolves entity IDs (contact_id, event_id, device_id, note_id, alarm_id, etc.)
+from tool read results and handles fuzzy string matching for Vietnamese names and aliases.
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ class EntityResolver:
         x_ref: str | None,
         tool_results_history: list[dict[str, Any]],
     ) -> str | None:
-        """Attempts to auto-ground an ID parameter from the most recent tool results."""
+        """Attempts to auto-ground an ID parameter from the most recent tool results across any app."""
         if not tool_results_history:
             return None
 
@@ -167,29 +167,28 @@ class EntityResolver:
             if not isinstance(res, dict) or not res.get("ok", True):
                 continue
 
-            # Contact matching
-            if param_name == "contact_id" or x_ref == "contacts.contacts":
-                contacts = res.get("contacts") or []
-                if isinstance(contacts, list) and len(contacts) == 1:
-                    cid = contacts[0].get("id")
-                    if cid:
-                        return str(cid)
+            # 1. Match by collection name from x_ref (e.g. contacts.contacts, calendar.events, notes.notes)
+            if x_ref and "." in x_ref:
+                collection_key = x_ref.split(".", 1)[1]
+                items = res.get(collection_key)
+                if isinstance(items, list) and len(items) == 1 and isinstance(items[0], dict):
+                    item_id = items[0].get("id")
+                    if item_id:
+                        return str(item_id)
 
-            # Event matching
-            if param_name == "event_id" or x_ref == "calendar.events":
-                events = res.get("events") or []
-                if isinstance(events, list) and len(events) == 1:
-                    eid = events[0].get("id")
-                    if eid:
-                        return str(eid)
+            # 2. Match by param_name prefix/plural (e.g. contact_id -> contacts, device_id -> devices)
+            clean_name = param_name.replace("_id", "")
+            for plural in [f"{clean_name}s", f"{clean_name}es", clean_name]:
+                items = res.get(plural)
+                if isinstance(items, list) and len(items) == 1 and isinstance(items[0], dict):
+                    item_id = items[0].get("id")
+                    if item_id:
+                        return str(item_id)
 
-            # Device matching
-            if param_name == "device_id" or x_ref == "smart_home.devices":
-                devices = res.get("devices") or []
-                if isinstance(devices, list) and len(devices) == 1:
-                    did = devices[0].get("id")
-                    if did:
-                        return str(did)
+            # 3. Direct key match in result dict
+            if param_name in res and res[param_name]:
+                val = res[param_name]
+                if isinstance(val, (str, int)):
+                    return str(val)
 
         return None
-

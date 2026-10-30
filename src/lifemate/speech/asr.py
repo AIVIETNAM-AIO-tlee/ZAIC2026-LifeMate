@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import os
 from pathlib import Path
 from typing import Any
 
@@ -41,10 +42,20 @@ class ASRModel:
         self.config = dict(config or {})
         self.preprocessing = dict(self.config.get("preprocessing", {}))
         self.runtime = dict(self.config.get("runtime", {}))
+
+        # Dynamically extract model config from either "model" or the first entry in "models" list
         model_config = dict(self.config.get("model", {}))
+        if not model_config and "models" in self.config and isinstance(self.config["models"], list) and self.config["models"]:
+            model_config = dict(self.config["models"][0])
+
         self.model_name = str(model_config.get("model_name_or_path", "openai/whisper-small"))
-        self.cache_dir = model_config.get("cache_dir", "models/asr")
-        self.local_files_only = bool(model_config.get("local_files_only", False))
+
+        cache_dir_env = os.environ.get("HF_HOME")
+        self.cache_dir = cache_dir_env or model_config.get("cache_dir", "models/asr")
+
+        offline_env = os.environ.get("TRANSFORMERS_OFFLINE") == "1" or os.environ.get("HF_HUB_OFFLINE") == "1"
+        self.local_files_only = offline_env or bool(model_config.get("local_files_only", False))
+
         self.language = model_config.get("language", "vietnamese")
         self.task = model_config.get("task", "transcribe")
         self.max_new_tokens = int(model_config.get("max_new_tokens", 128))

@@ -32,8 +32,10 @@ def _normalize_date(match: re.Match[str]) -> str:
     year = match.group("year")
     if not 1 <= day <= 31 or not 1 <= month <= 12:
         return match.group(0)
-    date = f"{day:02d}/{month:02d}"
-    return f"{date}/{year}" if year else date
+    # Output ISO-8601 YYYY-MM-DD when year is available to match tool schema
+    if year:
+        return f"{int(year):04d}-{month:02d}-{day:02d}"
+    return f"{day:02d}/{month:02d}"
 
 
 def _normalize_time(match: re.Match[str]) -> str:
@@ -70,7 +72,7 @@ def _normalize_money(match: re.Match[str]) -> str:
     return f"{rendered} đồng"
 
 
-def normalize_text(text: str) -> str:
+def normalize_text(text: str, lowercase: bool = False) -> str:
     """Canonicalize common date, time, and currency expressions without rewriting entities."""
     if not isinstance(text, str):
         raise TypeError("Transcript must be a string")
@@ -80,4 +82,4 @@ def normalize_text(text: str) -> str:
     value = _MONEY.sub(_normalize_money, value)
     value = _PUNCTUATION_SPACING.sub(r"\1", value)
     value = _MULTIPLE_SPACES.sub(" ", value)
-    return value.strip().lower()
+    return value.strip().lower() if lowercase else value.strip()

@@ -33,41 +33,22 @@ class ArgumentBuilder:
         grounded = dict(raw_arguments)
         x_refs = tool_spec.get_x_refs()
 
-        # 1. Contact ID grounding (x-ref: contacts.contacts)
-        if "contact_id" in tool_spec.param_specs or "contacts.contacts" in x_refs.values():
-            if not grounded.get("contact_id") and not grounded.get("phone_number"):
-                # Try to extract contact_id from prior contacts.search results
-                cid = EntityResolver.extract_id_from_tool_results(
-                    "contact_id",
-                    "contacts.contacts",
-                    context.tool_results,
-                )
-                if cid:
-                    grounded["contact_id"] = cid
+        # Dynamic ID grounding across all catalog parameters (e.g. contact_id, event_id, device_id, note_id, etc.)
+        for p_name in tool_spec.param_specs:
+            if p_name.endswith("_id") or p_name in x_refs:
+                if not grounded.get(p_name):
+                    if p_name == "contact_id" and grounded.get("phone_number"):
+                        continue
+                    xref_target = x_refs.get(p_name)
+                    extracted_id = EntityResolver.extract_id_from_tool_results(
+                        p_name,
+                        xref_target,
+                        context.tool_results,
+                    )
+                    if extracted_id:
+                        grounded[p_name] = extracted_id
 
-        # 2. Event ID grounding (x-ref: calendar.events)
-        if "event_id" in tool_spec.param_specs or "calendar.events" in x_refs.values():
-            if not grounded.get("event_id"):
-                eid = EntityResolver.extract_id_from_tool_results(
-                    "event_id",
-                    "calendar.events",
-                    context.tool_results,
-                )
-                if eid:
-                    grounded["event_id"] = eid
-
-        # 3. Device ID grounding (x-ref: smart_home.devices)
-        if "device_id" in tool_spec.param_specs or "smart_home.devices" in x_refs.values():
-            if not grounded.get("device_id"):
-                did = EntityResolver.extract_id_from_tool_results(
-                    "device_id",
-                    "smart_home.devices",
-                    context.tool_results,
-                )
-                if did:
-                    grounded["device_id"] = did
-
-        # 4. Temporal / Date Grounding
+        # Temporal / Date Grounding
         for param_name, param_spec in tool_spec.param_specs.items():
             val = grounded.get(param_name)
             if isinstance(val, str):
@@ -78,10 +59,13 @@ class ArgumentBuilder:
                 elif param_spec.format == "date-time" or param_name in ("start", "end", "time"):
                     # Ensure ISO-8601 timezone offset
                     if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$", val):
-                        # Extract timezone offset from current_time_str
                         offset = "+07:00"
                         if context.current_time_str and ("+" in context.current_time_str[-6:] or "-" in context.current_time_str[-6:]):
                             offset = context.current_time_str[-6:]
+                        elif context.temporal.tz:
+                            now_str = context.temporal.now.strftime("%z")
+                            if len(now_str) == 5:
+                                offset = f"{now_str[:3]}:{now_str[3:]}"
                         grounded[param_name] = val + offset
 
         return grounded
@@ -116,4 +100,3 @@ class ArgumentBuilder:
                         missing.append(p)
 
         return missing
-
