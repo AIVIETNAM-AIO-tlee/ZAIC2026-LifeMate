@@ -1,8 +1,18 @@
+device: auto
+precision: auto
+batch_size: 1
+max_tool_calls: 12
+num_workers: 2
+max_timeout_per_sample_seconds: 10.0
+log_level: "INFO"
+output_dir: "result"
+
 runtime:
-  device: "cpu"
+  device: auto
+  precision: auto
+  batch_size: 1
+  max_tool_calls: 12
   num_workers: 2
   max_timeout_per_sample_seconds: 10.0
-  batch_size: 1
   log_level: "INFO"
   output_dir: "result"
-

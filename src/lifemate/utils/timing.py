@@ -1,13 +1,15 @@
-"""Timing and Profiling Utilities for ZAC 2026 LifeMate Agent.
+"""Timing and Profiling Utilities for ZAC 2026 LifeMate Agent & ASR.
 
 Provides precision timers, context managers, and stage-level latency tracking.
 """
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import functools
 import time
-from typing import Any, Callable
+from time import perf_counter
+from typing import Any, Callable, Iterator
 
 
 class Timer:
@@ -32,8 +34,19 @@ class Timer:
         return self.elapsed * 1000.0
 
 
+@contextmanager
+def timer() -> Iterator[dict[str, float]]:
+    """Yield a result mapping populated with elapsed seconds when the block exits."""
+    result: dict[str, float] = {}
+    started = perf_counter()
+    try:
+        yield result
+    finally:
+        result["seconds"] = perf_counter() - started
+
+
 def timed(func: Callable) -> Callable:
-    """Decorator to measure and log function execution time."""
+    """Decorator to measure and log function execution time in milliseconds."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start = time.perf_counter()
@@ -41,6 +54,13 @@ def timed(func: Callable) -> Callable:
         duration_ms = (time.perf_counter() - start) * 1000.0
         return result, duration_ms
     return wrapper
+
+
+def timed_call(function: Callable, *args: Any, **kwargs: Any) -> tuple[Any, float]:
+    """Measure function execution time in seconds."""
+    started = perf_counter()
+    result = function(*args, **kwargs)
+    return result, perf_counter() - started
 
 
 class LatencyTracker:
@@ -71,4 +91,3 @@ class LatencyTracker:
                 "p99_ms": round(p99, 2),
             }
         return stats
-

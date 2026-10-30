@@ -8,3 +8,5 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.data
+ZAIC-Hallucination-Lifemate.xlsx

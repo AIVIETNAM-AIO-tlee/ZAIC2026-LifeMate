@@ -8,8 +8,9 @@ __pycache__
 .pytest_cache
 experiments/reports/
 data/
+.data
 result/
 models/
 docs/
 tests/
-
+ZAIC-Hallucination-Lifemate.xlsx
