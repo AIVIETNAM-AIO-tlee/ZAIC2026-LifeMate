@@ -1,0 +1,22 @@
+models:
+  - name: whisper-small
+    model_name_or_path: openai/whisper-small
+    cache_dir: models/asr
+    local_files_only: false
+    language: vietnamese
+    task: transcribe
+    max_new_tokens: 128
+
+preprocessing:
+  sample_rate: 16000
+  mono: true
+
+runtime:
+  device: auto
+  precision: auto
+  batch_size: 1
+  max_tool_calls: 12
+
+validation:
+  fraction: 0.1
+  seed: 42

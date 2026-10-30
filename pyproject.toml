@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lifemate"
+version = "0.1.0"
+description = "Vietnamese speech and tool-use assistant"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+asr = [
+  "torch>=2.2",
+  "transformers>=4.40",
+  "scipy>=1.10",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,4 @@
+device: auto
+precision: auto
+batch_size: 1
+max_tool_calls: 12

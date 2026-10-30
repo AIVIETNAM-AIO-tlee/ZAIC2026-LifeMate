@@ -5,3 +5,5 @@
 !/models/**/.gitkeep
 !/result/**/
 !/result/**/.gitkeep
+.data
+ZAIC-Hallucination-Lifemate.xlsx
